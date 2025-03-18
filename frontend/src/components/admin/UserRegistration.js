@@ -101,6 +101,14 @@ const UserRegistration = () => {
         }
       }
 
+      // Log registration attempt
+      console.log('Attempting to register user:', {
+        fullName: formData.fullName,
+        email: formData.email.toLowerCase(),
+        department: formData.department,
+        role: formData.role
+      });
+
       const response = await fetch('http://localhost:5000/api/v1/auth/signup', {
         method: 'POST',
         headers: headers,
@@ -114,6 +122,7 @@ const UserRegistration = () => {
       });
 
       const data = await response.json();
+      console.log('Registration response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to register user');
@@ -133,7 +142,11 @@ const UserRegistration = () => {
 
       // Dispatch appropriate event based on the response
       if (data.data.user.isApproved) {
-        console.log('User created and approved');
+        console.log('User created and approved successfully:', {
+          email: data.data.user.email,
+          role: data.data.user.role,
+          isApproved: data.data.user.isApproved
+        });
         window.dispatchEvent(new CustomEvent('userRegistered'));
       } else {
         console.log('User pending approval');
@@ -256,7 +269,9 @@ const UserRegistration = () => {
                   label="Role"
                 >
                   <MenuItem value="staff">Staff</MenuItem>
-                  <MenuItem value="assetManager">Asset Manager</MenuItem>
+                  <MenuItem value="dduAssetManager">dduAsset Manager</MenuItem>
+                  <MenuItem value="iotAssetManager">IOTAsset Manager</MenuItem>
+
                   {user?.role === 'admin' && (
                     <MenuItem value="admin">Admin</MenuItem>
                   )}

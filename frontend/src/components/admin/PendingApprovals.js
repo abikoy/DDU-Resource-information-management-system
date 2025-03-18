@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { approveUser, deleteUser, getPendingUsers } from '../../services/userService';
 
 const PendingApprovals = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -28,16 +29,8 @@ const PendingApprovals = () => {
 
   const fetchPendingUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/users/pending', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch pending users');
-      }
-      const data = await response.json();
-      setPendingUsers(data.data.users);
+      const response = await getPendingUsers();
+      setPendingUsers(response.data.users);
     } catch (error) {
       setSnackbar({
         open: true,
@@ -53,17 +46,7 @@ const PendingApprovals = () => {
 
   const handleApprove = async (userId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/users/${userId}/approve`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to approve user');
-      }
-
+      await approveUser(userId);
       setPendingUsers(prevUsers => prevUsers.filter(user => user._id !== userId));
       setSnackbar({
         open: true,
@@ -73,7 +56,7 @@ const PendingApprovals = () => {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error.message,
+        message: error.message || 'Failed to approve user',
         severity: 'error'
       });
     }
@@ -81,17 +64,7 @@ const PendingApprovals = () => {
 
   const handleReject = async (userId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reject user');
-      }
-
+      await deleteUser(userId);
       setPendingUsers(prevUsers => prevUsers.filter(user => user._id !== userId));
       setSnackbar({
         open: true,
@@ -102,7 +75,7 @@ const PendingApprovals = () => {
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error.message,
+        message: error.message || 'Failed to reject user',
         severity: 'error'
       });
     }

@@ -11,6 +11,7 @@ const fs = require('fs');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const resourceRoutes = require('./routes/resourceRoutes');
+const testRoute = require('./routes/testRoute');
 
 const app = express();
 
@@ -43,8 +44,14 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Body parser
+// Body parser with request logging
 app.use(express.json({ limit: '10kb' }));
+app.use((req, res, next) => {
+  if (req.method === 'POST' && (req.path.includes('/login') || req.path.includes('/signup'))) {
+    console.log('Request body:', { ...req.body, password: '[REDACTED]' });
+  }
+  next();
+});
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // Data sanitization against NoSQL query injection
@@ -63,6 +70,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // API Routes
+app.use('/api/v1/test', testRoute); 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/resources', resourceRoutes);
@@ -75,8 +83,15 @@ app.all('*', (req, res, next) => {
   });
 });
 
-// Global error handling middleware
+// Global error handling middleware with detailed logging
 app.use((err, req, res, next) => {
+  console.error('Error details:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 

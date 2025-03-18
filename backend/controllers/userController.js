@@ -76,7 +76,14 @@ exports.getAllUsers = async (req, res) => {
 // Get pending users (admin only)
 exports.getPendingUsers = async (req, res) => {
   try {
-    const users = await User.find({ isApproved: false }).select('-password');
+    console.log('Fetching pending users...');
+    const users = await User.find({ 
+      isApproved: false,
+      role: { $ne: 'admin' } // Exclude admin users
+    }).select('-password');
+
+    console.log('Found pending users:', users.length);
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -96,8 +103,15 @@ exports.getPendingUsers = async (req, res) => {
 exports.getApprovedUsers = async (req, res) => {
   try {
     console.log('Fetching approved users...');
-    const users = await User.find({ isApproved: true }).select('-password');
-    console.log('Found users:', users);
+    const users = await User.find({ 
+      $or: [
+        { isApproved: true },
+        { role: 'admin' }  // Include admin users regardless of approval status
+      ]
+    }).select('-password');
+
+    console.log('Found approved users:', users.length);
+
     res.status(200).json({
       status: 'success',
       data: {

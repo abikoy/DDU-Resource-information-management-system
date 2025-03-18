@@ -89,6 +89,10 @@ const Login = () => {
         // Redirect based on user role
         if (userData.role === 'admin') {
           navigate('/admin');
+        } else if (userData.role === 'dduAssetManager') {
+          navigate('/ddu-asset-manager');
+        } else if (userData.role === 'iotAssetManager') {
+          navigate('/iot-asset-manager');
         } else if (userData.role === 'assetManager') {
           navigate('/asset-manager');
         } else {

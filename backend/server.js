@@ -10,8 +10,8 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-// Use local MongoDB connection
-const DB = 'mongodb://localhost:27017/rms';
+// Use MongoDB Atlas connection
+const DB = process.env.DATABASE_ONLINE.replace('<PASSWORD>', process.env.DATABASE_PASSWORD);
 
 const port = process.env.PORT || 5000;
 
@@ -20,7 +20,7 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true
   })
-  .then(() => console.log("Local database connection successful! 😍"))
+  .then(() => console.log("Database connection successful! 😍"))
   .catch((err) => {
     console.error("Database connection error:", err);
     process.exit(1);

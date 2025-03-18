@@ -1,14 +1,19 @@
 const express = require('express');
 const authController = require('../controllers/authController');
-const { protect } = require('../middleware/protect');
 
 const router = express.Router();
 
 // Public routes
+router.post('/signup', authController.signup);
 router.post('/login', authController.login);
-router.post('/signup', authController.signup); // Allow public signup
 
-// Protected routes that require authentication
-router.use(protect);
+// Protected routes
+router.use(authController.protect);
+
+// Role verification route
+router.get('/verify-role', authController.verifyRole);
+
+// Admin only routes
+router.use('/admin', authController.restrictTo('admin'));
 
 module.exports = router;
