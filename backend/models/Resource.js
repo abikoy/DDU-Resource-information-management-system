@@ -3,9 +3,95 @@ const mongoose = require('mongoose');
 const resourceSchema = new mongoose.Schema({
   department: {
     type: String,
-    enum: ['DDU', 'IoT'],
-    required: [true, 'Department is required']
+    required: [true, 'Department is required'],
+    enum: ['DDU', 'IoT']
   },
+  assetName: {
+    type: String,
+    required: [true, 'Asset name is required']
+  },
+  serialNumber: {
+    type: String,
+    trim: true
+  },
+  assetClass: {
+    type: String,
+    required: [true, 'Asset class is required'],
+    enum: {
+      values: [
+        'Furniture',
+        'IT Resources',
+        'Laboratory Equipment',
+        'Office Equipment',
+        'Teaching Materials',
+        'Library Resources',
+        'Sports Equipment',
+        'Audio/Visual Equipment',
+        'Research Equipment',
+        'Software Licenses',
+        'Network Infrastructure',
+        'Security Equipment',
+        'Maintenance Tools',
+        'Medical Equipment',
+        'Other Resources'
+      ],
+      message: '{VALUE} is not a valid asset class'
+    }
+  },
+  assetType: {
+    type: String,
+    required: [true, 'Asset type is required'],
+    enum: {
+      values: ['Tangible', 'Intangible'],
+      message: '{VALUE} is not a valid asset type'
+    }
+  },
+  assetModel: String,
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  quantity: {
+    type: Number,
+    required: [true, 'Quantity is required'],
+    min: [1, 'Quantity must be at least 1']
+  },
+  unitPrice: {
+    birr: {
+      type: Number,
+      required: [true, 'Unit price (Birr) is required'],
+      min: [0, 'Unit price cannot be negative']
+    },
+    cents: {
+      type: Number,
+      default: 0,
+      min: [0, 'Cents cannot be negative'],
+      max: [99, 'Cents must be less than 100']
+    }
+  },
+  totalPrice: {
+    birr: {
+      type: Number,
+      required: [true, 'Total price (Birr) is required'],
+      min: [0, 'Total price cannot be negative']
+    },
+    cents: {
+      type: Number,
+      default: 0,
+      min: [0, 'Cents cannot be negative'],
+      max: [99, 'Cents must be less than 100']
+    }
+  },
+  location: {
+    type: String,
+    default: 'In Office'
+  },
+  status: {
+    type: String,
+    enum: ['Not Assigned', 'Assigned', 'Damaged', 'Archived'],
+    default: 'Not Assigned'
+  },
+  remarks: String,
   registryInfo: {
     expenditureRegistryNo: {
       type: String,
@@ -38,105 +124,60 @@ const resourceSchema = new mongoose.Schema({
     dateOf: {
       type: Date,
       required: [true, 'Date is required']
+    },
+    storeKeeperSignature: {
+      name: {
+        type: String,
+        required: [true, 'Store keeper name is required']
+      },
+      date: {
+        type: Date,
+        required: [true, 'Store keeper signature date is required']
+      }
+    },
+    recipientSignature: {
+      name: {
+        type: String,
+        required: [true, 'Recipient name is required']
+      },
+      date: {
+        type: Date,
+        required: [true, 'Recipient signature date is required']
+      }
     }
-  },
-  description: {
-    type: String,
-    required: [true, 'Description is required']
-  },
-  model: {
-    type: String,
-    default: ''
-  },
-  serial: {
-    type: String,
-    default: ''
-  },
-  fromNo: {
-    type: String,
-    default: ''
-  },
-  toNo: {
-    type: String,
-    default: ''
-  },
-  quantity: {
-    type: Number,
-    required: [true, 'Quantity is required'],
-    min: [0, 'Quantity cannot be negative']
-  },
-  unitPrice: {
-    type: Number,
-    required: [true, 'Unit price is required'],
-    min: [0, 'Unit price cannot be negative']
-  },
-  totalPrice: {
-    type: Number,
-    required: [true, 'Total price is required'],
-    min: [0, 'Total price cannot be negative']
-  },
-  remarks: {
-    type: String,
-    default: ''
-  },
-  resourceType: {
-    type: String,
-    enum: ['room_furniture', 'equipment', 'software', 'office_supplies', 'it_resources'],
-    required: [true, 'Resource type is required']
-  },
-  status: {
-    type: String,
-    enum: ['active', 'inactive', 'maintenance', 'disposed'],
-    default: 'active'
   },
   registeredBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Registered by user is required']
-  },
-  registeredAt: {
-    type: Date,
-    default: Date.now
+    required: true
   }
+}, {
+  timestamps: true
 });
 
-// Pre-save middleware to format data
-resourceSchema.pre('save', function(next) {
-  // Convert department to proper case
-  if (this.department) {
-    if (this.department.toLowerCase() === 'ddu') {
-      this.department = 'DDU';
-    } else if (this.department.toLowerCase() === 'iot') {
-      this.department = 'IoT';
-    }
-  }
+// Create compound index for unique asset identification
+resourceSchema.index({ department: 1, serialNumber: 1 }, { unique: true, sparse: true });
 
-  // Calculate total price if not set
-  if (this.quantity && this.unitPrice && !this.totalPrice) {
-    this.totalPrice = this.quantity * this.unitPrice;
-  }
-
-  next();
-});
-
-// Virtual for formatted prices
+// Virtual for formatted price
 resourceSchema.virtual('formattedUnitPrice').get(function() {
-  if (!this.unitPrice) return { birr: 0, cents: 0 };
-  const birr = Math.floor(this.unitPrice);
-  const cents = Math.round((this.unitPrice - birr) * 100);
-  return { birr, cents };
+  return `${this.unitPrice.birr}.${this.unitPrice.cents.toString().padStart(2, '0')} Birr`;
 });
 
 resourceSchema.virtual('formattedTotalPrice').get(function() {
-  if (!this.totalPrice) return { birr: 0, cents: 0 };
-  const birr = Math.floor(this.totalPrice);
-  const cents = Math.round((this.totalPrice - birr) * 100);
-  return { birr, cents };
+  return `${this.totalPrice.birr}.${this.totalPrice.cents.toString().padStart(2, '0')} Birr`;
 });
 
-// Enable virtuals in JSON
-resourceSchema.set('toJSON', { virtuals: true });
-resourceSchema.set('toObject', { virtuals: true });
+// Auto-generate total price before saving
+resourceSchema.pre('save', async function(next) {
+  // Calculate total price
+  const unitPriceTotal = this.unitPrice.birr + (this.unitPrice.cents / 100);
+  const totalPriceValue = unitPriceTotal * this.quantity;
+  
+  this.totalPrice.birr = Math.floor(totalPriceValue);
+  this.totalPrice.cents = Math.round((totalPriceValue % 1) * 100);
+
+  next();
+});
 
 const Resource = mongoose.model('Resource', resourceSchema);
 

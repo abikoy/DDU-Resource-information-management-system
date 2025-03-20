@@ -1,57 +1,21 @@
 const express = require('express');
-const resourceController = require('../controllers/resourceController');
-const authController = require('../controllers/authController');
-
 const router = express.Router();
-
-// Protect all routes
-router.use(authController.protect);
-
-// Department-specific routes
-router.get('/ddu', 
-  authController.restrictTo('dduAssetManager', 'admin'),
-  resourceController.getDDUResources
-);
-
-router.get('/iot', 
-  authController.restrictTo('iotAssetManager', 'admin'),
-  resourceController.getIoTResources
-);
+const { protect } = require('../middleware/authMiddleware');
+const {
+  createResource,
+  getAllResources,
+  getIoTStats,
+  getDDUStats
+} = require('../controllers/resourceController');
 
 // Resource registration routes
-router.post('/register/ddu',
-  authController.restrictTo('dduAssetManager'),
-  resourceController.createDDUResource
-);
+router.post('/', protect, createResource);
 
-router.post('/register/iot',
-  authController.restrictTo('iotAssetManager'),
-  resourceController.createIoTResource
-);
+// Get all resources
+router.get('/', protect, getAllResources);
 
-// General resource routes with role-based access
-router.route('/')
-  .get(resourceController.getAllResources)
-  .post(
-    authController.restrictTo('dduAssetManager', 'iotAssetManager', 'admin'),
-    resourceController.createResource
-  );
-
-router.route('/:id')
-  .get(resourceController.getResource)
-  .patch(
-    authController.restrictTo('dduAssetManager', 'iotAssetManager', 'admin'),
-    resourceController.updateResource
-  )
-  .delete(
-    authController.restrictTo('dduAssetManager', 'iotAssetManager', 'admin'),
-    resourceController.deleteResource
-  );
-
-// Transfer routes
-router.post('/:id/transfer',
-  authController.restrictTo('dduAssetManager', 'iotAssetManager'),
-  resourceController.transferResource
-);
+// Get department stats
+router.get('/stats/iot', protect, getIoTStats);
+router.get('/stats/ddu', protect, getDDUStats);
 
 module.exports = router;

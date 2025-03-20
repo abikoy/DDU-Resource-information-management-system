@@ -1,106 +1,155 @@
 const Resource = require('../models/Resource');
 const Transfer = require('../models/Transfer');
 
-// Helper function to determine resource type based on description
-const determineResourceType = (description, department) => {
-  description = description.toLowerCase();
-  
-  if (department === 'DDU') {
-    if (description.includes('furniture') || description.includes('chair') || description.includes('table')) {
-      return 'room_furniture';
-    } else if (description.includes('software') || description.includes('license')) {
-      return 'non-tangible';
-    }
-    return 'tangible';
-  } else if (department === 'IoT') {
-    if (description.includes('software') || description.includes('license')) {
-      return 'software';
-    } else if (description.includes('computer') || description.includes('device') || description.includes('sensor')) {
-      return 'equipment';
-    }
-    return 'it_resources';
-  }
-  return 'tangible';
-};
+const VALID_DEPARTMENTS = ['DDU', 'IoT'];
+const VALID_RESOURCE_TYPES = ['room_furniture', 'equipment', 'software', 'office_supplies', 'it_resources'];
 
 exports.createResource = async (req, res) => {
   try {
+    console.log('Received request body:', JSON.stringify(req.body, null, 2));
+
     const {
-      expenditureRegistryNo,
-      incomingGoodsRegistryNo,
-      stockClassification,
-      storeNo,
-      shelfNo,
-      outgoingGoodsRegistryNo,
-      orderNo,
-      dateOf,
-      items,
-      department
+      department,
+      assetName,
+      serialNumber,
+      assetClass,
+      assetType,
+      assetModel,
+      quantity,
+      unitPrice,
+      totalPrice,
+      location,
+      remarks,
+      registryInfo
     } = req.body;
 
-    // Validate required fields
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    // Validate department
+    if (!department || !VALID_DEPARTMENTS.includes(department)) {
       return res.status(400).json({
         status: 'error',
-        message: 'At least one item is required'
+        message: `Invalid department. Must be one of: ${VALID_DEPARTMENTS.join(', ')}`
       });
     }
 
-    // Process each item and create resources
-    const resources = await Promise.all(items.map(async (item) => {
-      // Calculate prices
-      const quantity = parseFloat(item.quantity);
-      const unitPriceBirr = parseFloat(item.unitPriceBirr || '0');
-      const unitPriceCents = parseFloat(item.unitPriceCents || '0');
-      const unitPrice = unitPriceBirr + (unitPriceCents / 100);
-      const totalPrice = quantity * unitPrice;
-
-      if (isNaN(quantity) || isNaN(unitPrice) || isNaN(totalPrice)) {
-        throw new Error('Invalid numeric values provided for quantity or prices');
-      }
-
-      // Create the resource
-      return await Resource.create({
-        department: department.toUpperCase(),
-        registryInfo: {
-          expenditureRegistryNo,
-          incomingGoodsRegistryNo,
-          stockClassification,
-          storeNo,
-          shelfNo,
-          outgoingGoodsRegistryNo,
-          orderNo,
-          dateOf: new Date(dateOf)
-        },
-        description: item.description,
-        model: item.model || '',
-        serial: item.serial || '',
-        fromNo: item.fromNo || '',
-        toNo: item.toNo || '',
-        quantity: quantity,
-        unitPrice: unitPrice,
-        totalPrice: totalPrice,
-        remarks: item.remarks || '',
-        resourceType: determineResourceType(item.description, department),
-        registeredBy: req.user._id,
-        status: 'active'
+    // Validate required fields
+    if (!assetName) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Asset name is required'
       });
-    }));
+    }
 
-    console.log('Resources created:', {
-      count: resources.length,
-      department: department,
-      registeredBy: req.user._id
-    });
+    if (!assetClass) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Asset class is required'
+      });
+    }
+
+    if (!assetType) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Asset type is required'
+      });
+    }
+
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Quantity must be at least 1'
+      });
+    }
+
+    if (!unitPrice || !unitPrice.birr || unitPrice.birr < 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Unit price (Birr) must be provided and non-negative'
+      });
+    }
+
+    // Validate registry info
+    if (!registryInfo) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Registry information is required'
+      });
+    }
+
+    const requiredRegistryFields = [
+      'expenditureRegistryNo',
+      'incomingGoodsRegistryNo',
+      'stockClassification',
+      'storeNo',
+      'shelfNo',
+      'outgoingGoodsRegistryNo',
+      'orderNo',
+      'dateOf'
+    ];
+
+    for (const field of requiredRegistryFields) {
+      if (!registryInfo[field]) {
+        return res.status(400).json({
+          status: 'error',
+          message: `Registry information: ${field} is required`
+        });
+      }
+    }
+
+    // Create the resource
+    const resourceData = {
+      department,
+      assetName,
+      serialNumber: serialNumber || '',
+      assetClass,
+      assetType,
+      assetModel: assetModel || '',
+      quantity: parseInt(quantity),
+      unitPrice,
+      totalPrice: totalPrice || {
+        birr: quantity * (unitPrice.birr || 0),
+        cents: quantity * (unitPrice.cents || 0)
+      },
+      location: location || 'In Office',
+      remarks: remarks || '',
+      registryInfo,
+      registeredBy: req.user._id,
+      status: 'Not Assigned'
+    };
+
+    console.log('Creating resource with data:', JSON.stringify(resourceData, null, 2));
+
+    const resource = await Resource.create(resourceData);
+
+    console.log('Created resource:', JSON.stringify(resource, null, 2));
 
     res.status(201).json({
       status: 'success',
       data: {
-        resources
+        resource
       }
     });
   } catch (error) {
-    console.error('Resource creation error:', error);
+    console.error('Error creating resource:', error);
+    
+    // Check for validation errors from Mongoose
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+
+    // Check for duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        status: 'error',
+        message: `This ${field} is already in use`
+      });
+    }
+
     res.status(400).json({
       status: 'error',
       message: error.message || 'Error creating resource'
@@ -108,236 +157,92 @@ exports.createResource = async (req, res) => {
   }
 };
 
-exports.createDDUResource = async (req, res) => {
-  try {
-    if (req.user.department !== 'DDU') {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You can only register DDU resources'
-      });
-    }
-    req.body.department = 'DDU';
-    await exports.createResource(req, res);
-  } catch (error) {
-    console.error('DDU resource creation error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
-exports.createIoTResource = async (req, res) => {
-  try {
-    if (req.user.department !== 'IoT') {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You can only register IoT resources'
-      });
-    }
-    req.body.department = 'IoT';
-    await exports.createResource(req, res);
-  } catch (error) {
-    console.error('IoT resource creation error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
+// Get all resources
 exports.getAllResources = async (req, res) => {
   try {
     const resources = await Resource.find()
-      .populate('registeredBy', 'fullName email department');
+      .sort({ createdAt: -1 })
+      .populate('registeredBy', 'name');
 
     res.status(200).json({
       status: 'success',
+      results: resources.length,
       data: {
         resources
       }
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(400).json({
       status: 'error',
       message: error.message
     });
   }
 };
 
-exports.getDDUResources = async (req, res) => {
+// Get resource stats for IoT department
+exports.getIoTStats = async (req, res) => {
   try {
-    const resources = await Resource.find({ department: 'DDU' })
-      .populate('registeredBy', 'fullName email department');
+    const stats = await Resource.aggregate([
+      { $match: { department: 'IoT' } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalValue: { 
+            $sum: { 
+              $add: [
+                { $multiply: ['$quantity', '$unitPrice.birr'] },
+                { $multiply: ['$quantity', { $divide: ['$unitPrice.cents', 100] }] }
+              ]
+            }
+          }
+        }
+      }
+    ]);
 
     res.status(200).json({
       status: 'success',
       data: {
-        resources
+        stats
       }
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(400).json({
       status: 'error',
       message: error.message
     });
   }
 };
 
-exports.getIoTResources = async (req, res) => {
+// Get resource stats for DDU department
+exports.getDDUStats = async (req, res) => {
   try {
-    const resources = await Resource.find({ department: 'IoT' })
-      .populate('registeredBy', 'fullName email department');
+    const stats = await Resource.aggregate([
+      { $match: { department: 'DDU' } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalValue: { 
+            $sum: { 
+              $add: [
+                { $multiply: ['$quantity', '$unitPrice.birr'] },
+                { $multiply: ['$quantity', { $divide: ['$unitPrice.cents', 100] }] }
+              ]
+            }
+          }
+        }
+      }
+    ]);
 
     res.status(200).json({
       status: 'success',
       data: {
-        resources
+        stats
       }
     });
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
-exports.getResource = async (req, res) => {
-  try {
-    const resource = await Resource.findById(req.params.id)
-      .populate('registeredBy', 'fullName email department');
-
-    if (!resource) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Resource not found'
-      });
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        resource
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
-exports.updateResource = async (req, res) => {
-  try {
-    const resource = await Resource.findById(req.params.id);
-    
-    if (!resource) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Resource not found'
-      });
-    }
-
-    // Check if user has permission to update this resource
-    if (req.user.role !== 'admin' && resource.department !== req.user.department) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You can only update resources in your department'
-      });
-    }
-
-    const updatedResource = await Resource.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    ).populate('registeredBy', 'fullName email department');
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        resource: updatedResource
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
-exports.deleteResource = async (req, res) => {
-  try {
-    const resource = await Resource.findById(req.params.id);
-    
-    if (!resource) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Resource not found'
-      });
-    }
-
-    // Check if user has permission to delete this resource
-    if (req.user.role !== 'admin' && resource.department !== req.user.department) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You can only delete resources in your department'
-      });
-    }
-
-    await Resource.findByIdAndDelete(req.params.id);
-
-    res.status(204).json({
-      status: 'success',
-      data: null
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-};
-
-exports.transferResource = async (req, res) => {
-  try {
-    const { recipientId, reason } = req.body;
-    const resourceId = req.params.id;
-
-    const resource = await Resource.findById(resourceId);
-    if (!resource) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Resource not found'
-      });
-    }
-
-    // Check if user has permission to transfer this resource
-    if (resource.department !== req.user.department) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You can only transfer resources from your department'
-      });
-    }
-
-    const transfer = await Transfer.create({
-      resource: resourceId,
-      from: req.user._id,
-      to: recipientId,
-      reason,
-      status: 'pending'
-    });
-
-    res.status(201).json({
-      status: 'success',
-      data: {
-        transfer
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
+    res.status(400).json({
       status: 'error',
       message: error.message
     });

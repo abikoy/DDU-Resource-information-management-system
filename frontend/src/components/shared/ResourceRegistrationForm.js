@@ -1,496 +1,580 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Paper,
+  Box,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Paper,
+  Grid,
   TextField,
   Button,
-  Grid,
-  Box,
-  Divider,
-  styled,
-  FormHelperText,
-  MenuItem,
-  Select,
   FormControl,
-  InputLabel
+  InputLabel,
+  Select,
+  MenuItem,
+  FormHelperText,
+  Divider,
+  TableContainer,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody
 } from '@mui/material';
 
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  borderBottom: '1px solid rgba(224, 224, 224, 1)',
-  borderRight: '1px solid rgba(224, 224, 224, 1)',
-  padding: '8px',
-  '&:last-child': {
-    borderRight: 'none'
-  }
-}));
-
-const StyledTextField = styled(TextField)({
-  '& .MuiInputBase-input': {
-    padding: '8px',
-  },
-});
-
-const ResourceRegistrationForm = ({ department, onSubmit }) => {
-  const [registryInfo, setRegistryInfo] = useState({
-    expenditureRegistryNo: '',
-    incomingGoodsRegistryNo: '',
-    stockClassification: '',
-    storeNo: '',
-    shelfNo: '',
-    outgoingGoodsRegistryNo: '',
-    orderNo: '',
-    dateOf: new Date().toISOString().split('T')[0]
-  });
-
-  const [items, setItems] = useState([{
-    id: 1,
-    description: '',
-    model: '',
-    serial: '',
-    fromNo: '',
-    toNo: '',
-    quantity: '',
-    unitPriceBirr: '',
-    unitPriceCents: '',
-    totalPriceBirr: '',
-    totalPriceCents: '',
+const ResourceRegistrationForm = ({ department, onSubmit, onCancel, isSubmitting }) => {
+  const [formData, setFormData] = useState({
+    assetName: '',
+    serialNumber: '',
+    assetClass: '',
+    assetType: '',
+    assetModel: '',
+    quantity: '1',
+    unitPrice: {
+      birr: '',
+      cents: '00'
+    },
+    totalPrice: {
+      birr: '0',
+      cents: '00'
+    },
+    location: 'In Office',
     remarks: '',
-    resourceType: ''
-  }]);
-
-  const resourceTypes = [
-    { value: 'room_furniture', label: 'Room Furniture' },
-    { value: 'equipment', label: 'Equipment' },
-    { value: 'software', label: 'Software' },
-    { value: 'office_supplies', label: 'Office Supplies' },
-    { value: 'it_resources', label: 'IT Resources' }
-  ];
+    registryInfo: {
+      expenditureRegistryNo: '',
+      incomingGoodsRegistryNo: '',
+      stockClassification: '',
+      storeNo: '',
+      shelfNo: '',
+      outgoingGoodsRegistryNo: '',
+      orderNo: '',
+      dateOf: new Date().toISOString().split('T')[0],
+      storeKeeperSignature: {
+        name: '',
+        date: new Date().toISOString().split('T')[0]
+      },
+      recipientSignature: {
+        name: '',
+        date: new Date().toISOString().split('T')[0]
+      }
+    }
+  });
 
   const [errors, setErrors] = useState({});
 
-  const validateField = (name, value) => {
-    if (!value || value.trim() === '') {
-      return 'This field is required';
-    }
-    return '';
+  const assetClasses = [
+    { value: 'Furniture', label: 'Furniture' },
+    { value: 'IT Resources', label: 'IT Resources' },
+    { value: 'Laboratory Equipment', label: 'Laboratory Equipment' },
+    { value: 'Office Equipment', label: 'Office Equipment' },
+    { value: 'Teaching Materials', label: 'Teaching Materials' },
+    { value: 'Library Resources', label: 'Library Resources' },
+    { value: 'Sports Equipment', label: 'Sports Equipment' },
+    { value: 'Audio/Visual Equipment', label: 'Audio/Visual Equipment' },
+    { value: 'Research Equipment', label: 'Research Equipment' },
+    { value: 'Software Licenses', label: 'Software Licenses' },
+    { value: 'Network Infrastructure', label: 'Network Infrastructure' },
+    { value: 'Security Equipment', label: 'Security Equipment' },
+    { value: 'Maintenance Tools', label: 'Maintenance Tools' },
+    { value: 'Medical Equipment', label: 'Medical Equipment' },
+    { value: 'Other Resources', label: 'Other Resources' }
+  ];
+
+  const assetTypes = [
+    { value: 'Tangible', label: 'Tangible' },
+    { value: 'Intangible', label: 'Intangible' }
+  ];
+
+  const calculateTotalPrice = () => {
+    const quantity = parseFloat(formData.quantity) || 0;
+    const unitPriceBirr = parseFloat(formData.unitPrice.birr) || 0;
+    const unitPriceCents = parseFloat(formData.unitPrice.cents) || 0;
+    
+    const totalInCents = Math.round((unitPriceBirr * 100 + unitPriceCents) * quantity);
+    const totalBirr = Math.floor(totalInCents / 100);
+    const totalCents = totalInCents % 100;
+
+    setFormData(prev => ({
+      ...prev,
+      totalPrice: {
+        birr: totalBirr.toString(),
+        cents: totalCents.toString().padStart(2, '0')
+      }
+    }));
   };
 
-  const validateNumber = (value, min = 0, max = null) => {
-    const num = parseFloat(value);
-    if (isNaN(num)) {
-      return 'Please enter a valid number';
+  useEffect(() => {
+    calculateTotalPrice();
+  }, [formData.quantity, formData.unitPrice.birr, formData.unitPrice.cents]);
+
+  const handleChange = (field) => (event) => {
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
     }
-    if (num < min) {
-      return `Value must be at least ${min}`;
+  };
+
+  const handleNestedChange = (parent, field) => (event) => {
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      [parent]: {
+        ...prev[parent],
+        [field]: value
+      }
+    }));
+    
+    if (errors[`${parent}.${field}`]) {
+      setErrors(prev => ({
+        ...prev,
+        [`${parent}.${field}`]: ''
+      }));
     }
-    if (max !== null && num > max) {
-      return `Value must be less than ${max}`;
-    }
-    return '';
   };
 
   const handleRegistryChange = (field) => (event) => {
-    const value = event.target.value;
-    setRegistryInfo({
-      ...registryInfo,
-      [field]: value
-    });
+    setFormData(prev => ({
+      ...prev,
+      registryInfo: {
+        ...prev.registryInfo,
+        [field]: event.target.value
+      }
+    }));
     
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors({
-        ...errors,
-        [field]: ''
-      });
+    if (errors[`registryInfo.${field}`]) {
+      setErrors(prev => ({
+        ...prev,
+        [`registryInfo.${field}`]: ''
+      }));
     }
   };
 
-  const handleItemChange = (index, field) => (event) => {
-    const value = event.target.value;
-    const newItems = [...items];
-    newItems[index] = {
-      ...newItems[index],
-      [field]: value
-    };
-
-    // Calculate total price if unit price or quantity changes
-    if (field === 'unitPriceBirr' || field === 'unitPriceCents' || field === 'quantity') {
-      const quantity = parseFloat(newItems[index].quantity) || 0;
-      const unitBirr = parseFloat(newItems[index].unitPriceBirr) || 0;
-      const unitCents = parseFloat(newItems[index].unitPriceCents || '0') || 0;
-      
-      const totalInCents = Math.round((unitBirr * 100 + unitCents) * quantity);
-      newItems[index].totalPriceBirr = Math.floor(totalInCents / 100).toString();
-      newItems[index].totalPriceCents = (totalInCents % 100).toString().padStart(2, '0');
-    }
-
-    setItems(newItems);
-    setErrors({}); // Clear errors when user makes changes
-  };
-
-  const addNewRow = () => {
-    setItems([...items, {
-      id: items.length + 1,
-      description: '',
-      model: '',
-      serial: '',
-      fromNo: '',
-      toNo: '',
-      quantity: '',
-      unitPriceBirr: '',
-      unitPriceCents: '',
-      totalPriceBirr: '',
-      totalPriceCents: '',
-      remarks: '',
-      resourceType: ''
-    }]);
-  };
-
-  const calculateTotals = () => {
-    let totalQuantity = 0;
-    let totalPriceBirr = 0;
-    let totalPriceCents = 0;
-
-    items.forEach(item => {
-      totalQuantity += parseFloat(item.quantity) || 0;
-      totalPriceBirr += parseFloat(item.totalPriceBirr) || 0;
-      totalPriceCents += parseFloat(item.totalPriceCents) || 0;
-    });
-
-    // Adjust for cents overflow
-    totalPriceBirr += Math.floor(totalPriceCents / 100);
-    totalPriceCents = totalPriceCents % 100;
-
-    return {
-      quantity: totalQuantity,
-      birr: totalPriceBirr,
-      cents: totalPriceCents
-    };
-  };
-
-  const validateForm = () => {
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    
     const newErrors = {};
 
-    // Validate registry info
-    Object.keys(registryInfo).forEach(field => {
-      if (!registryInfo[field]) {
-        newErrors[field] = 'This field is required';
-      }
-    });
-
-    // Validate items
-    if (!items || items.length === 0) {
-      newErrors.items = 'At least one item is required';
-      return newErrors;
+    // Validate required fields
+    if (!formData.assetName) {
+      newErrors.assetName = 'Asset name is required';
     }
 
-    items.forEach((item, index) => {
-      if (!item.description) {
-        newErrors[`items.${index}.description`] = 'Description is required';
-      }
-      if (!item.resourceType || !resourceTypes.find(rt => rt.value === item.resourceType)) {
-        newErrors[`items.${index}.resourceType`] = 'Please select a valid resource type';
-      }
-      if (!item.quantity || isNaN(item.quantity) || parseFloat(item.quantity) <= 0) {
-        newErrors[`items.${index}.quantity`] = 'Please enter a valid quantity (greater than 0)';
-      }
-      if (!item.unitPriceBirr || isNaN(item.unitPriceBirr) || parseFloat(item.unitPriceBirr) < 0) {
-        newErrors[`items.${index}.unitPriceBirr`] = 'Please enter a valid price (0 or greater)';
-      }
-      if (item.unitPriceCents && (isNaN(item.unitPriceCents) || parseFloat(item.unitPriceCents) < 0 || parseFloat(item.unitPriceCents) > 99)) {
-        newErrors[`items.${index}.unitPriceCents`] = 'Cents must be between 0 and 99';
+    if (!formData.assetClass) {
+      newErrors.assetClass = 'Asset class is required';
+    }
+
+    if (!formData.assetType) {
+      newErrors.assetType = 'Asset type is required';
+    }
+
+    if (!formData.quantity || formData.quantity < 1) {
+      newErrors.quantity = 'Quantity must be at least 1';
+    }
+
+    if (!formData.unitPrice.birr || formData.unitPrice.birr < 0) {
+      newErrors['unitPrice.birr'] = 'Unit price cannot be negative';
+    }
+
+    // Validate registry info
+    const requiredRegistryFields = [
+      'expenditureRegistryNo',
+      'incomingGoodsRegistryNo',
+      'stockClassification',
+      'storeNo',
+      'shelfNo',
+      'outgoingGoodsRegistryNo',
+      'orderNo',
+      'dateOf'
+    ];
+
+    requiredRegistryFields.forEach(field => {
+      if (!formData.registryInfo[field]) {
+        newErrors[`registryInfo.${field}`] = `${field.replace(/([A-Z])/g, ' $1').toLowerCase()} is required`;
       }
     });
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    // Validate signatures
+    if (!formData.registryInfo.storeKeeperSignature.name) {
+      newErrors['registryInfo.storeKeeperSignature.name'] = 'Store keeper name is required';
+    }
+    if (!formData.registryInfo.recipientSignature.name) {
+      newErrors['registryInfo.recipientSignature.name'] = 'Recipient name is required';
+    }
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    // Transform the data to match the backend requirements
-    const transformedData = {
-      ...registryInfo,
-      items: items.map(item => ({
-        description: item.description,
-        model: item.model || '',
-        serial: item.serial || '',
-        fromNo: item.fromNo || '',
-        toNo: item.toNo || '',
-        quantity: parseFloat(item.quantity),
-        unitPriceBirr: parseFloat(item.unitPriceBirr || '0'),
-        unitPriceCents: parseFloat(item.unitPriceCents || '0'),
-        remarks: item.remarks || '',
-        resourceType: item.resourceType
-      }))
-    };
-
-    onSubmit(transformedData);
+    onSubmit(formData);
   };
 
-  const totals = calculateTotals();
-
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ textDecoration: 'underline' }}>
-        RECEIPT FOR ARTICLES OF PROPERTY ISSUED
-      </Typography>
-
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={4}>
-          <StyledTextField
-            fullWidth
-            label="1. Item No. in Expenditure Registry"
-            value={registryInfo.expenditureRegistryNo}
-            onChange={handleRegistryChange('expenditureRegistryNo')}
-            error={!!errors.expenditureRegistryNo}
-            helperText={errors.expenditureRegistryNo}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StyledTextField
-            fullWidth
-            label="2. No. of Entry in Register of Incoming Goods"
-            value={registryInfo.incomingGoodsRegistryNo}
-            onChange={handleRegistryChange('incomingGoodsRegistryNo')}
-            error={!!errors.incomingGoodsRegistryNo}
-            helperText={errors.incomingGoodsRegistryNo}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StyledTextField
-            fullWidth
-            label="3. Classification of Stock"
-            value={registryInfo.stockClassification}
-            onChange={handleRegistryChange('stockClassification')}
-            error={!!errors.stockClassification}
-            helperText={errors.stockClassification}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StyledTextField
-            fullWidth
-            label="4. Store No."
-            value={registryInfo.storeNo}
-            onChange={handleRegistryChange('storeNo')}
-            error={!!errors.storeNo}
-            helperText={errors.storeNo}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StyledTextField
-            fullWidth
-            label="5. Shelf No."
-            value={registryInfo.shelfNo}
-            onChange={handleRegistryChange('shelfNo')}
-            error={!!errors.shelfNo}
-            helperText={errors.shelfNo}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <StyledTextField
-            fullWidth
-            label="6. No. of Entry in Register of Outgoing Goods"
-            value={registryInfo.outgoingGoodsRegistryNo}
-            onChange={handleRegistryChange('outgoingGoodsRegistryNo')}
-            error={!!errors.outgoingGoodsRegistryNo}
-            helperText={errors.outgoingGoodsRegistryNo}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <StyledTextField
-            fullWidth
-            label="Order No."
-            value={registryInfo.orderNo}
-            onChange={handleRegistryChange('orderNo')}
-            error={!!errors.orderNo}
-            helperText={errors.orderNo}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          <StyledTextField
-            fullWidth
-            type="date"
-            label="Date"
-            value={registryInfo.dateOf}
-            onChange={handleRegistryChange('dateOf')}
-            error={!!errors.dateOf}
-            helperText={errors.dateOf}
-            InputLabelProps={{ shrink: true }}
-          />
-        </Grid>
-      </Grid>
-
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <StyledTableCell>No.</StyledTableCell>
-              <StyledTableCell>Description of Articles or Property</StyledTableCell>
-              <StyledTableCell>Resource Type</StyledTableCell>
-              <StyledTableCell>Model</StyledTableCell>
-              <StyledTableCell>Serial</StyledTableCell>
-              <StyledTableCell>From</StyledTableCell>
-              <StyledTableCell>To</StyledTableCell>
-              <StyledTableCell>Quantity</StyledTableCell>
-              <StyledTableCell>Unit Price (Birr)</StyledTableCell>
-              <StyledTableCell>Cents</StyledTableCell>
-              <StyledTableCell>Total Price (Birr)</StyledTableCell>
-              <StyledTableCell>Cents</StyledTableCell>
-              <StyledTableCell>Remarks</StyledTableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {items.map((item, index) => (
-              <TableRow key={item.id}>
-                <StyledTableCell>{index + 1}</StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    value={item.description}
-                    onChange={(e) => handleItemChange(index, 'description')(e)}
-                    error={!!errors[`items.${index}.description`]}
-                    helperText={errors[`items.${index}.description`]}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <FormControl fullWidth>
-                    <Select
-                      value={item.resourceType}
-                      onChange={(e) => handleItemChange(index, 'resourceType')(e)}
-                      displayEmpty
-                      error={!!errors[`items.${index}.resourceType`]}
-                    >
-                      <MenuItem value="" disabled>Select Type</MenuItem>
-                      {resourceTypes.map((type) => (
-                        <MenuItem key={type.value} value={type.value}>
-                          {type.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {errors[`items.${index}.resourceType`] && (
-                      <FormHelperText error>
-                        {errors[`items.${index}.resourceType`]}
-                      </FormHelperText>
-                    )}
-                  </FormControl>
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    value={item.model}
-                    onChange={(e) => handleItemChange(index, 'model')(e)}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    value={item.serial}
-                    onChange={(e) => handleItemChange(index, 'serial')(e)}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    value={item.fromNo}
-                    onChange={(e) => handleItemChange(index, 'fromNo')(e)}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    value={item.toNo}
-                    onChange={(e) => handleItemChange(index, 'toNo')(e)}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    type="number"
-                    value={item.quantity}
-                    onChange={(e) => handleItemChange(index, 'quantity')(e)}
-                    error={!!errors[`items.${index}.quantity`]}
-                    helperText={errors[`items.${index}.quantity`]}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    type="number"
-                    value={item.unitPriceBirr}
-                    onChange={(e) => handleItemChange(index, 'unitPriceBirr')(e)}
-                    error={!!errors[`items.${index}.unitPriceBirr`]}
-                    helperText={errors[`items.${index}.unitPriceBirr`]}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    type="number"
-                    value={item.unitPriceCents}
-                    onChange={(e) => handleItemChange(index, 'unitPriceCents')(e)}
-                    error={!!errors[`items.${index}.unitPriceCents`]}
-                    helperText={errors[`items.${index}.unitPriceCents`]}
-                  />
-                </StyledTableCell>
-                <StyledTableCell>
-                  <Typography>{item.totalPriceBirr}</Typography>
-                </StyledTableCell>
-                <StyledTableCell>
-                  <Typography>{item.totalPriceCents}</Typography>
-                </StyledTableCell>
-                <StyledTableCell>
-                  <StyledTextField
-                    fullWidth
-                    value={item.remarks}
-                    onChange={(e) => handleItemChange(index, 'remarks')(e)}
-                  />
-                </StyledTableCell>
-              </TableRow>
-            ))}
-            <TableRow>
-              <StyledTableCell colSpan={6} align="right">Total:</StyledTableCell>
-              <StyledTableCell>{totals.quantity}</StyledTableCell>
-              <StyledTableCell colSpan={2}></StyledTableCell>
-              <StyledTableCell>{totals.birr}</StyledTableCell>
-              <StyledTableCell>{totals.cents}</StyledTableCell>
-              <StyledTableCell></StyledTableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
-        <Button variant="contained" color="primary" onClick={addNewRow}>
-          Add New Row
-        </Button>
-        <Button variant="contained" color="primary" onClick={handleSubmit}>
-          Submit
-        </Button>
-      </Box>
-
-      <Box sx={{ mt: 4 }}>
-        <Grid container spacing={2}>
+    <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Add New Asset
+        </Typography>
+        
+        <Grid container spacing={3}>
           <Grid item xs={12} sm={6}>
-            <Typography>Store Keeper's Signature: _________________</Typography>
+            <TextField
+              fullWidth
+              label="Asset Name"
+              value={formData.assetName}
+              onChange={handleChange('assetName')}
+              error={!!errors.assetName}
+              helperText={errors.assetName}
+              required
+            />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography>Recipient's Signature: _________________</Typography>
+            <TextField
+              fullWidth
+              label="Serial Number"
+              value={formData.serialNumber}
+              onChange={handleChange('serialNumber')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth error={!!errors.assetClass} required>
+              <InputLabel>Asset Class</InputLabel>
+              <Select
+                value={formData.assetClass}
+                onChange={handleChange('assetClass')}
+                label="Asset Class"
+              >
+                {assetClasses.map(type => (
+                  <MenuItem key={type.value} value={type.value}>
+                    {type.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.assetClass && (
+                <FormHelperText>{errors.assetClass}</FormHelperText>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth error={!!errors.assetType} required>
+              <InputLabel>Asset Type</InputLabel>
+              <Select
+                value={formData.assetType}
+                onChange={handleChange('assetType')}
+                label="Asset Type"
+              >
+                {assetTypes.map(type => (
+                  <MenuItem key={type.value} value={type.value}>
+                    {type.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.assetType && (
+                <FormHelperText>{errors.assetType}</FormHelperText>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Asset Model"
+              value={formData.assetModel}
+              onChange={handleChange('assetModel')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Quantity"
+              type="number"
+              value={formData.quantity}
+              onChange={handleChange('quantity')}
+              error={!!errors.quantity}
+              helperText={errors.quantity}
+              required
+              inputProps={{ min: 1 }}
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="subtitle1" gutterBottom>
+              Price Information
+            </Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Item Name</TableCell>
+                    <TableCell align="right">Quantity</TableCell>
+                    <TableCell align="right">Unit Price (Birr)</TableCell>
+                    <TableCell align="right">Unit Price (Cents)</TableCell>
+                    <TableCell align="right">Total Price (Birr)</TableCell>
+                    <TableCell align="right">Total Price (Cents)</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow>
+                    <TableCell>{formData.assetName || '-'}</TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        value={formData.quantity}
+                        onChange={handleChange('quantity')}
+                        error={!!errors.quantity}
+                        size="small"
+                        inputProps={{ min: 1, style: { textAlign: 'right' } }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        value={formData.unitPrice.birr}
+                        onChange={handleNestedChange('unitPrice', 'birr')}
+                        error={!!errors['unitPrice.birr']}
+                        size="small"
+                        inputProps={{ min: 0, style: { textAlign: 'right' } }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <TextField
+                        type="number"
+                        value={formData.unitPrice.cents}
+                        onChange={handleNestedChange('unitPrice', 'cents')}
+                        error={!!errors['unitPrice.cents']}
+                        size="small"
+                        inputProps={{ min: 0, max: 99, style: { textAlign: 'right' } }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      {formData.totalPrice.birr}
+                    </TableCell>
+                    <TableCell align="right">
+                      {formData.totalPrice.cents}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} align="right">
+                      <strong>Total:</strong>
+                    </TableCell>
+                    <TableCell align="right" colSpan={3}>
+                      <strong>
+                        {formData.totalPrice.birr}.{formData.totalPrice.cents} Birr
+                      </strong>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="h6" gutterBottom>
+              Registry Information
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Expenditure Registry No"
+              value={formData.registryInfo.expenditureRegistryNo}
+              onChange={handleRegistryChange('expenditureRegistryNo')}
+              error={!!errors['registryInfo.expenditureRegistryNo']}
+              helperText={errors['registryInfo.expenditureRegistryNo']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Incoming Goods Registry No"
+              value={formData.registryInfo.incomingGoodsRegistryNo}
+              onChange={handleRegistryChange('incomingGoodsRegistryNo')}
+              error={!!errors['registryInfo.incomingGoodsRegistryNo']}
+              helperText={errors['registryInfo.incomingGoodsRegistryNo']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Stock Classification"
+              value={formData.registryInfo.stockClassification}
+              onChange={handleRegistryChange('stockClassification')}
+              error={!!errors['registryInfo.stockClassification']}
+              helperText={errors['registryInfo.stockClassification']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Store No"
+              value={formData.registryInfo.storeNo}
+              onChange={handleRegistryChange('storeNo')}
+              error={!!errors['registryInfo.storeNo']}
+              helperText={errors['registryInfo.storeNo']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Shelf No"
+              value={formData.registryInfo.shelfNo}
+              onChange={handleRegistryChange('shelfNo')}
+              error={!!errors['registryInfo.shelfNo']}
+              helperText={errors['registryInfo.shelfNo']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Outgoing Goods Registry No"
+              value={formData.registryInfo.outgoingGoodsRegistryNo}
+              onChange={handleRegistryChange('outgoingGoodsRegistryNo')}
+              error={!!errors['registryInfo.outgoingGoodsRegistryNo']}
+              helperText={errors['registryInfo.outgoingGoodsRegistryNo']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Order No"
+              value={formData.registryInfo.orderNo}
+              onChange={handleRegistryChange('orderNo')}
+              error={!!errors['registryInfo.orderNo']}
+              helperText={errors['registryInfo.orderNo']}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              type="date"
+              label="Date"
+              value={formData.registryInfo.dateOf}
+              onChange={handleRegistryChange('dateOf')}
+              error={!!errors['registryInfo.dateOf']}
+              helperText={errors['registryInfo.dateOf']}
+              required
+              InputLabelProps={{ shrink: true }}
+            />
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" gutterBottom>
+              Signatures
+            </Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Store Keeper Name"
+              value={formData.registryInfo.storeKeeperSignature.name}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                registryInfo: {
+                  ...prev.registryInfo,
+                  storeKeeperSignature: {
+                    ...prev.registryInfo.storeKeeperSignature,
+                    name: e.target.value
+                  }
+                }
+              }))}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              type="date"
+              label="Store Keeper Sign Date"
+              value={formData.registryInfo.storeKeeperSignature.date}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                registryInfo: {
+                  ...prev.registryInfo,
+                  storeKeeperSignature: {
+                    ...prev.registryInfo.storeKeeperSignature,
+                    date: e.target.value
+                  }
+                }
+              }))}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              label="Recipient Name"
+              value={formData.registryInfo.recipientSignature.name}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                registryInfo: {
+                  ...prev.registryInfo,
+                  recipientSignature: {
+                    ...prev.registryInfo.recipientSignature,
+                    name: e.target.value
+                  }
+                }
+              }))}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              type="date"
+              label="Recipient Sign Date"
+              value={formData.registryInfo.recipientSignature.date}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                registryInfo: {
+                  ...prev.registryInfo,
+                  recipientSignature: {
+                    ...prev.registryInfo.recipientSignature,
+                    date: e.target.value
+                  }
+                }
+              }))}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
           </Grid>
         </Grid>
+      </Paper>
+      
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
+        <Button
+          variant="outlined"
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          type="submit"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Saving...' : 'Save Asset'}
+        </Button>
       </Box>
-    </Paper>
+    </Box>
   );
 };
 
