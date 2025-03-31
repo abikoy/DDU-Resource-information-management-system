@@ -15,8 +15,13 @@ const testRoute = require('./routes/testRoute');
 
 const app = express();
 
-// Enable CORS for all routes
-app.use(cors());
+// Enable CORS with specific configuration
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL 
+    : 'http://localhost:3000',
+  credentials: true
+}));
 
 // Set security HTTP headers with proper configuration for image serving
 app.use(
@@ -26,6 +31,7 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "blob:", "http:", "https:"],
+        connectSrc: ["'self'", "http://localhost:5000", "http://localhost:3000"]
       },
     },
   })

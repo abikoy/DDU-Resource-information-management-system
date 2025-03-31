@@ -8,53 +8,67 @@ const resourceSchema = new mongoose.Schema({
   },
   assetName: {
     type: String,
-    required: [true, 'Asset name is required']
+    required: [true, 'Asset name is required'],
+    trim: true
   },
   serialNumber: {
     type: String,
+    unique: true,
+    sparse: true,
     trim: true
-  },
-  assetClass: {
-    type: String,
-    required: [true, 'Asset class is required'],
-    enum: {
-      values: [
-        'Furniture',
-        'IT Resources',
-        'Laboratory Equipment',
-        'Office Equipment',
-        'Teaching Materials',
-        'Library Resources',
-        'Sports Equipment',
-        'Audio/Visual Equipment',
-        'Research Equipment',
-        'Software Licenses',
-        'Network Infrastructure',
-        'Security Equipment',
-        'Maintenance Tools',
-        'Medical Equipment',
-        'Other Resources'
-      ],
-      message: '{VALUE} is not a valid asset class'
-    }
   },
   assetType: {
     type: String,
     required: [true, 'Asset type is required'],
-    enum: {
-      values: ['Tangible', 'Intangible'],
-      message: '{VALUE} is not a valid asset type'
+    enum: ['Consumable', 'Non-Consumable']
+  },
+  assetClass: {
+    type: String,
+    required: [true, 'Asset class is required'],
+    validate: {
+      validator: function(value) {
+        const consumableTypes = [
+          'Office Supplies',
+          'Lab Supplies',
+          'Cleaning Supplies',
+          'Medical Supplies',
+          'IT Supplies'
+        ];
+        const nonConsumableTypes = [
+          'Technology',
+          'Furniture',
+          'Laboratory Equipment',
+          'Library Resources',
+          'Facilities and Infrastructure'
+        ];
+        
+        if (this.assetType === 'Consumable') {
+          return consumableTypes.includes(value);
+        } else {
+          return nonConsumableTypes.includes(value);
+        }
+      },
+      message: props => `${props.value} is not a valid asset class for the selected asset type`
     }
   },
-  assetModel: String,
-  assignedTo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  assetModel: {
+    type: String,
+    trim: true
+  },
+  status: {
+    type: String,
+    enum: ['Not Assigned', 'Assigned', 'In Maintenance', 'Retired'],
+    default: 'Not Assigned'
+  },
+  location: {
+    type: String,
+    required: [true, 'Location is required'],
+    trim: true
   },
   quantity: {
     type: Number,
     required: [true, 'Quantity is required'],
-    min: [1, 'Quantity must be at least 1']
+    min: [1, 'Quantity must be greater than 0']
   },
   unitPrice: {
     birr: {
@@ -64,89 +78,71 @@ const resourceSchema = new mongoose.Schema({
     },
     cents: {
       type: Number,
-      default: 0,
+      required: [true, 'Unit price (Cents) is required'],
       min: [0, 'Cents cannot be negative'],
-      max: [99, 'Cents must be less than 100']
+      max: [99, 'Cents cannot be more than 99']
     }
   },
   totalPrice: {
     birr: {
       type: Number,
-      required: [true, 'Total price (Birr) is required'],
-      min: [0, 'Total price cannot be negative']
+      required: true
     },
     cents: {
       type: Number,
-      default: 0,
-      min: [0, 'Cents cannot be negative'],
-      max: [99, 'Cents must be less than 100']
+      required: true,
+      min: 0,
+      max: 99
     }
   },
-  location: {
-    type: String,
-    default: 'In Office'
-  },
-  status: {
-    type: String,
-    enum: ['Not Assigned', 'Assigned', 'Damaged', 'Archived'],
-    default: 'Not Assigned'
-  },
-  remarks: String,
   registryInfo: {
     expenditureRegistryNo: {
       type: String,
-      required: [true, 'Expenditure registry number is required']
+      trim: true
     },
     incomingGoodsRegistryNo: {
       type: String,
-      required: [true, 'Incoming goods registry number is required']
+      trim: true
     },
     stockClassification: {
       type: String,
-      required: [true, 'Stock classification is required']
+      trim: true
     },
     storeNo: {
       type: String,
-      required: [true, 'Store number is required']
+      trim: true
     },
     shelfNo: {
       type: String,
-      required: [true, 'Shelf number is required']
+      trim: true
     },
     outgoingGoodsRegistryNo: {
       type: String,
-      required: [true, 'Outgoing goods registry number is required']
+      trim: true
     },
     orderNo: {
       type: String,
-      required: [true, 'Order number is required']
+      trim: true
     },
-    dateOf: {
-      type: Date,
-      required: [true, 'Date is required']
+    date: {
+      type: Date
     },
-    storeKeeperSignature: {
-      name: {
-        type: String,
-        required: [true, 'Store keeper name is required']
-      },
-      date: {
-        type: Date,
-        required: [true, 'Store keeper signature date is required']
-      }
+    storeKeeperName: {
+      type: String,
+      trim: true
     },
-    recipientSignature: {
-      name: {
-        type: String,
-        required: [true, 'Recipient name is required']
-      },
-      date: {
-        type: Date,
-        required: [true, 'Recipient signature date is required']
-      }
+    storeKeeperSignDate: {
+      type: Date
+    },
+    recipientName: {
+      type: String,
+      trim: true
+    },
+    recipientSignDate: {
+      type: Date
     }
   },
-  registeredBy: {
+  createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -155,27 +151,20 @@ const resourceSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create compound index for unique asset identification
-resourceSchema.index({ department: 1, serialNumber: 1 }, { unique: true, sparse: true });
-
-// Virtual for formatted price
-resourceSchema.virtual('formattedUnitPrice').get(function() {
-  return `${this.unitPrice.birr}.${this.unitPrice.cents.toString().padStart(2, '0')} Birr`;
-});
-
-resourceSchema.virtual('formattedTotalPrice').get(function() {
-  return `${this.totalPrice.birr}.${this.totalPrice.cents.toString().padStart(2, '0')} Birr`;
-});
-
-// Auto-generate total price before saving
-resourceSchema.pre('save', async function(next) {
-  // Calculate total price
-  const unitPriceTotal = this.unitPrice.birr + (this.unitPrice.cents / 100);
-  const totalPriceValue = unitPriceTotal * this.quantity;
+// Calculate total price before saving
+resourceSchema.pre('save', function(next) {
+  const totalBirr = this.quantity * this.unitPrice.birr;
+  const totalCents = this.quantity * this.unitPrice.cents;
   
-  this.totalPrice.birr = Math.floor(totalPriceValue);
-  this.totalPrice.cents = Math.round((totalPriceValue % 1) * 100);
-
+  // Convert excess cents to birr
+  const extraBirr = Math.floor(totalCents / 100);
+  const remainingCents = totalCents % 100;
+  
+  this.totalPrice = {
+    birr: totalBirr + extraBirr,
+    cents: remainingCents
+  };
+  
   next();
 });
 

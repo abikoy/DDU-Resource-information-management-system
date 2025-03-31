@@ -2,100 +2,62 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  userId: {
-    type: Number,
-    required: [true, 'Please provide a user ID'],
-    unique: true
-  },
-  fullName: {
+  name: {
     type: String,
-    required: [true, 'Please provide your full name']
+    required: [true, 'Please add a name']
   },
   email: {
     type: String,
-    required: [true, 'Please provide your email'],
+    required: [true, 'Please add an email'],
     unique: true,
-    lowercase: true,
-    validate: {
-      validator: function(v) {
-        return v.endsWith('@ddu.edu.et');
-      },
-      message: 'Please use your DDU email address (@ddu.edu.et)'
-    }
+    match: [
+      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+      'Please add a valid email'
+    ]
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
-    minlength: 8,
+    required: [true, 'Please add a password'],
+    minlength: 6,
     select: false
   },
   role: {
     type: String,
-    enum: ['admin', 'dduAssetManager', 'iotAssetManager', 'staff', 'assetManager'],
-    default: 'staff'
+    enum: ['dduAssetManager', 'iotAssetManager', 'dduStoreKeeper', 'iotStoreKeeper', 'admin'],
+    required: [true, 'Please specify user role']
   },
   department: {
     type: String,
-    required: [true, 'Please provide your department']
-  },
-  isApproved: {
-    type: Boolean,
-    default: false
+    enum: ['DDU', 'IoT'],
+    required: [true, 'Please specify department']
   }
 }, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  timestamps: true
 });
 
-// Pre-save middleware to hash password
+// Encrypt password using bcrypt
 userSchema.pre('save', async function(next) {
-  // Only hash the password if it's modified
-  if (!this.isModified('password')) return next();
-  
-  try {
-    // Use a consistent salt rounds value of 12
-    const salt = 12;
-    this.password = await bcrypt.hash(this.password, salt);
-    console.log('Password hashed successfully for:', this.email);
-  } catch (error) {
-    console.error('Error hashing password:', error);
-    return next(error);
+  if (!this.isModified('password')) {
+    next();
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Set department based on role
+userSchema.pre('save', function(next) {
+  if (this.role.toLowerCase().includes('ddu')) {
+    this.department = 'DDU';
+  } else if (this.role.toLowerCase().includes('iot')) {
+    this.department = 'IoT';
   }
   next();
 });
 
-// Method to check if password is correct
-userSchema.methods.correctPassword = async function(candidatePassword) {
-  try {
-    if (!this.password) {
-      console.error('No password found for user:', this.email);
-      return false;
-    }
-
-    // Log password details for debugging
-    console.log('Password check:', {
-      email: this.email,
-      hashedPasswordLength: this.password.length,
-      candidatePasswordLength: candidatePassword.length
-    });
-
-    const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    
-    console.log('Password verification result:', {
-      email: this.email,
-      isMatch,
-      passwordExists: !!this.password
-    });
-
-    return isMatch;
-  } catch (error) {
-    console.error('Password comparison error:', {
-      error: error.message,
-      email: this.email
-    });
-    return false;
-  }
+// Match user entered password to hashed password in database
+userSchema.methods.matchPassword = async function(enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
 };
 
 const User = mongoose.model('User', userSchema);

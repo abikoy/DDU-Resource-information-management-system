@@ -17,6 +17,7 @@ import AssetManagerDashboard from './pages/AssetManagerDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import DDUAssetManagerDashboard from './pages/DDUAssetManagerDashboard';
 import IoTAssetManagerDashboard from './pages/IoTAssetManagerDashboard';
+import ResourceDetails from './components/shared/ResourceDetails';
 
 // Create theme
 const theme = createTheme({
@@ -81,6 +82,14 @@ function App() {
                 element={
                   <PrivateRoute roles={['staff']}>
                     <StaffDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/resources/:id"
+                element={
+                  <PrivateRoute>
+                    <ResourceDetails />
                   </PrivateRoute>
                 }
               />

@@ -1,21 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
+const { protect, restrictTo } = require('../middleware/authMiddleware');
 const {
-  createResource,
   getAllResources,
-  getIoTStats,
-  getDDUStats
+  getResource,
+  createResource,
+  updateResource,
+  deleteResource,
+  getResourceStats
 } = require('../controllers/resourceController');
 
-// Resource registration routes
-router.post('/', protect, createResource);
+// Protect all routes after this middleware
+router.use(protect);
 
-// Get all resources
-router.get('/', protect, getAllResources);
+// Routes accessible by all authenticated users
+router.get('/', getAllResources);
+router.get('/stats/:department', getResourceStats);
+router.get('/:id', getResource);
 
-// Get department stats
-router.get('/stats/iot', protect, getIoTStats);
-router.get('/stats/ddu', protect, getDDUStats);
+// Routes restricted to DDU and IoT managers
+router.use(restrictTo('dduAssetManager', 'iotAssetManager', 'admin'));
+router.post('/', createResource);
+router.patch('/:id', updateResource);
+router.delete('/:id', deleteResource);
 
 module.exports = router;
