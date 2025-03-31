@@ -70,8 +70,8 @@ exports.signup = async (req, res) => {
     res.status(201).json({
       status: 'success',
       message: isAdminCreated || role === 'admin'
-        ? 'User created and approved successfully' 
-        : 'Registration successful. Waiting for admin approval',
+        ? 'User created and approved successfully✅✅' 
+        : 'Registration successful. Waiting for admin approval⏳',
       data: {
         user: newUser
       }
